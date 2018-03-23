@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>pro-cli-share</title>
+    <link rel="stylesheet" type="text/css" href="css/styles.css">
+</head>
+<body>
+<div id="app">
+    <div id="header">
+        <div v-if="online">
+            <div v-if="self && self.project">
+                <h1>You are sharing!</h1>
+                <small>You are working on</small>
+                <a :href="broadcastLink( false, self.port )" target="_blank">{{ self.project }}</a>
+                <small>on branch</small>
+
+                <transition name="slide-fade" mode="out-in">
+                    <span :key="self.branch">
+                        {{ self.branch }}
+                    </span>
+                </transition>
+            </div>
+            <div v-else>
+                <h1>Just watching!</h1>
+            </div>
+        </div>
+        <h1 v-else class="offline">You are offline!</h1>
+    </div>
+
+    <div id="broadcasts">
+        <ul>
+            <li v-for="broadcast in broadcasts" v-if="! isOffline( broadcast )" :class="isIdle( broadcast ) ? 'idle' : ''">
+                {{ broadcast.user }}
+
+                <small>is working on</small>
+
+                <transition name="slide-fade" mode="out-in">
+                    <span v-if="broadcast.ips.length > 0" :key="broadcast.project">
+                        <span v-for="( ip, index ) in broadcast.ips">
+                            <a v-if="index == 0" :href="broadcastLink( ip, broadcast.port )" target="_blank">{{ broadcast.project }}</a>
+                            <a v-else :href="broadcastLink( ip, broadcast.port )" target="_blank">{{ index }}</a>
+                        </span>
+                    </span>
+                    <span v-else :key="broadcast.project">{{ broadcast.project }}</span>
+                </transition>
+
+                <small>on branch</small>
+
+                <transition name="slide-fade" mode="out-in">
+                    <span :key="broadcast.branch">
+                        {{ broadcast.branch }}
+                    </span>
+                </transition>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.21.0/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vue@2.5.16/dist/vue.js"></script>
+<script type="text/javascript">
+    const app = new Vue( {
+        el: '#app',
+        data() {
+            return {
+                online: true,
+                self: {
+                    user: null,
+                    hostname: null,
+                    project: null,
+                    port: null,
+                    branch: null
+                },
+                broadcasts: []
+            }
+        },
+        methods: {
+            updateUsers() {
+                var self = this;
+
+                axios.get( 'shares.json' )
+                    .then( function( response ) {
+                        self.broadcasts = response.data.broadcasts;
+                        self.self = response.data.self;
+
+                        self.online = true;
+                    })
+                    .catch( function( error ) {
+                        self.online = false;
+                    });
+            },
+            broadcastLink( ip, port ) {
+                if ( ! ip && ! port ) {
+                    return '#';
+                } else if ( ip && port ) {
+                    return 'http://' + ip + ':' + port;
+                }
+
+                return 'http://localhost:' + port;
+            },
+            isIdle( user ) {
+                timestamp = user && user.updated_at ? user.updated_at : false;
+
+                if ( ! timestamp ) return true;
+
+                return moment.unix(timestamp).add(60, 'seconds').isBefore();
+            },
+            isOffline( user ) {
+                timestamp = user && user.updated_at ? user.updated_at : false;
+
+                if ( ! timestamp ) return true;
+
+                return moment.unix(timestamp).add(5, 'minutes').isBefore();
+            }
+        },
+        created() {
+            this.updateUsers();
+
+            setInterval( function() {
+                this.updateUsers();
+            }.bind( this ), 2000 );
+        }
+    } );
+</script>
+</body>
+</html>
